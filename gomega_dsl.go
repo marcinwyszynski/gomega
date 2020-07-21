@@ -461,3 +461,52 @@ func (globalFailHandlerGomega) Eventually(actual interface{}, extra ...interface
 func (globalFailHandlerGomega) Consistently(actual interface{}, extra ...interface{}) AsyncAssertion {
 	return Consistently(actual, extra...)
 }
+
+// WithFailHandler is an implementation of the Gomega interface that can be used
+// in parallel with testing frameworks that require special failure handling -
+// like goblin.
+type WithFailHandler struct {
+	wrapper *types.GomegaFailWrapper
+}
+
+// NewWithFailHandler takes a failure handler and returns a `gomega.WithFailHandler`
+// allowing you to use Gomega with the likes of Goblin in parallel.
+func NewWithFailHandler(handler types.GomegaFailHandler) *WithFailHandler {
+	return &WithFailHandler{
+		wrapper: &types.GomegaFailWrapper{
+			Fail:        handler,
+			TWithHelper: testingtsupport.EmptyTWithHelper{},
+		},
+	}
+}
+
+// Expect is used to make assertions. See documentation for Expect.
+func (g *WithFailHandler) Expect(actual interface{}, extra ...interface{}) Assertion {
+	return assertion.New(actual, g.wrapper, 0, extra...)
+}
+
+// Eventually is used to make asynchronous assertions. See documentation for Eventually.
+func (g *WithFailHandler) Eventually(actual interface{}, intervals ...interface{}) AsyncAssertion {
+	timeoutInterval := defaultEventuallyTimeout
+	pollingInterval := defaultEventuallyPollingInterval
+	if len(intervals) > 0 {
+		timeoutInterval = toDuration(intervals[0])
+	}
+	if len(intervals) > 1 {
+		pollingInterval = toDuration(intervals[1])
+	}
+	return asyncassertion.New(asyncassertion.AsyncAssertionTypeEventually, actual, g.wrapper, timeoutInterval, pollingInterval, 0)
+}
+
+// Consistently is used to make asynchronous assertions. See documentation for Consistently.
+func (g *WithFailHandler) Consistently(actual interface{}, intervals ...interface{}) AsyncAssertion {
+	timeoutInterval := defaultConsistentlyDuration
+	pollingInterval := defaultConsistentlyPollingInterval
+	if len(intervals) > 0 {
+		timeoutInterval = toDuration(intervals[0])
+	}
+	if len(intervals) > 1 {
+		pollingInterval = toDuration(intervals[1])
+	}
+	return asyncassertion.New(asyncassertion.AsyncAssertionTypeConsistently, actual, g.wrapper, timeoutInterval, pollingInterval, 0)
+}
